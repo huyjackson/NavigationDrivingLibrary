@@ -19,8 +19,28 @@ allprojects {
 
 Add the dependency
 ```
-compile 'com.github.huyjackson:NavigationDrivingLibrary:v1.0'
+compile 'com.github.huyjackson:NavigationDrivingLibrary:v1.1'
 ```
+
+## Changelog
+
+All notable changes to this project will be documented in this file.
+
+### [v1.1] - 2017-07-20
+#### Added
+- New support findDirection method with Location type parameter
+- Add 2 method onDirectionFinderStart() and onDirectionFinderFailed() in OnNavigationDrivingListener interface
+- Support set voice mode with 2 type are: GTTS (Google translate TTS) and Android TTS
+- Support set custom navigation diriving
+- Fixed a few bugs
+#### Removed
+- None
+#### Changed
+- None
+### [v1.0] - 2017-07-18
+#### Added
+- Upload base library
+
 
 ## Usage
 If you have already the Google map object:
@@ -30,23 +50,38 @@ NavigationDiriving navigationDriving;
 navigationDriving = new NavigationDriving(this, googleMap);
 
 //1.Set API KEY for Google Direction
-navigationDriving.setDirectionFinderAPIKey(GOOGLE_API_KEY);
+	navigationDriving.setDirectionFinderAPIKey(GOOGLE_API_KEY);
 
-//2.Set navigation driving listenter for your activity and override 2 method
-navigationDriving.setOnNavigationDrivingListener(this);
+//2.Set voice mode
+	- Google translate TTS: navigationDriving.setVoiceMode(Constant.NAVIGATION_DIRIVING_GTTS_VOICE_MODE);
+	- Android TTS: navigationDriving.setVoiceMode(Constant.NAVIGATION_DIRIVING_TTS_VOICE_MODE);
 
-//3.Override 2 method:
-public void onLocationChanged(Location location); //The method will call if current location change
-public void onDirectionFinderSuccess(); //The method will call if direction finder sucess and you can start navagation.
+//3.In your activity implement NavigationDriving.OnNavigationDrivingListener interface.
 
-//4.Find direction with start place and destination place
-navigationDriving.findDirection(startPlace, destPlace);
+//4.Set navigation driving listenter for your activity and override 2 method
+	navigationDriving.setOnNavigationDrivingListener(this);
 
-//5.After find direction you can start navigation diriving
-navigationDriving.startNavigationDriving();
+//5.Override 4 method:
+	public void onLocationChanged(Location location); //The method will call if current location change
+	public void onDirectionFinderSuccess(); //The method will call if direction finder sucess and you can start navagation.
+	public void onDirectionFinderStart(); //The method will call if direction finder start
+        public void onDirectionFinderFailed(); //The method will call if it can't find direction
+
+//6.Find direction with start place and destination place
+	navigationDriving.findDirection(startPlace, destPlace);
+     or
+	navigationDriving.findDirection(Location startLocation, Location destLocation);
+
+//7.After find direction you can start navigation diriving
+	navigationDriving.startNavigationDriving();
  
-//6.If you want to stop navigation diriving, you can use method
-navigationDriving.stopNavigationDriving();
+//8.If you want to stop navigation diriving, you can use method
+	navigationDriving.stopNavigationDriving();
+	
+**Note**
+- If you want to custom navigation driving whenever the location change, you can call method 
+setCustomNavigationDiriving(true) and put your code in onLocationChanged of your activity 
+implement NavigationDriving.OnNavigationDrivingListener interface.
 
 ```
 ## Note

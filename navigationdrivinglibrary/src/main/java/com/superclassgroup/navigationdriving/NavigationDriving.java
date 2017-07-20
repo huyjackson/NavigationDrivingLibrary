@@ -11,7 +11,6 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
-import android.util.Log;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -32,6 +31,7 @@ import com.superclassgroup.navigationdriving.utils.CameraUtils;
 import com.superclassgroup.navigationdriving.utils.Constant;
 import com.superclassgroup.navigationdriving.utils.MapsUtils;
 import com.superclassgroup.navigationdriving.utils.StreamAudioServiceUtils;
+import com.superclassgroup.navigationdriving.utils.TextToSpeechUtils;
 
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -58,19 +58,23 @@ public class NavigationDriving implements GoogleApiClient.ConnectionCallbacks, G
     private Boolean isNavigationDriving;
     private Boolean isSpeech = false;
     private String googleDirectionAPIKey;
-
-    public interface OnNavigationDrivingListener {
-        public void onLocationChanged(Location location);
-
-        public void onDirectionFinderSuccess();
-
-        public void onDirectionFinderFail();
-    }
-
+    private boolean isCustomNavigationDiriving;
+    private int voiceMode;
+    private TextToSpeechUtils ttsUtils;
 
     public NavigationDriving(Activity activity, GoogleMap googleMap) {
         this.activity = activity;
         this.googleMap = googleMap;
+        this.isCustomNavigationDiriving = false;
+        this.voiceMode = Constant.NAVIGATION_DIRIVING_GTTS_VOICE_MODE;
+    }
+
+    public void setCustomNavigationDiriving(boolean isCustom) {
+        this.isCustomNavigationDiriving = isCustom;
+    }
+
+    public void setVoiceMode(int voiceMode) {
+        this.voiceMode = voiceMode;
     }
 
     public void setDirectionFinderAPIKey(String googleDirectionAPIKey) {
@@ -91,37 +95,51 @@ public class NavigationDriving implements GoogleApiClient.ConnectionCallbacks, G
         }
     }
 
-    public boolean startNavigationDriving() {
-        stopNavigationDriving();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (ActivityCompat.checkSelfPermission(activity,
-                    android.Manifest.permission.ACCESS_FINE_LOCATION)
-                    == PackageManager.PERMISSION_GRANTED) {
-                //Location Permission already granted
-                buildGoogleApiClient();
-                isNavigationDriving = true;
-            } else {
-                //Request Location Permission
-                //checkLocationPermission(activity);
-                return false;
-            }
-        } else {
-            buildGoogleApiClient();
-            isNavigationDriving = true;
+    public void findDirection(Location startLocation, Location destLocation) {
+        try {
+            String origin = String.valueOf(startLocation.getLatitude()) + "," + String.valueOf(startLocation.getLongitude());
+            String destination = String.valueOf(destLocation.getLatitude()) + "," + String.valueOf(destLocation.getLongitude());
+            DirectionFinder directionFinder = new DirectionFinder(this, origin, destination);
+            directionFinder.setDirectionFinderAPIKey(googleDirectionAPIKey);
+            directionFinder.execute();
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
         }
-
-        return true;
     }
 
-    public void stopNavigationDriving() {
-        //stop location updates when Activity is no longer active
+    public int startNavigationDriving() {
+        if (!isNavigationDriving) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ActivityCompat.checkSelfPermission(activity,
+                        android.Manifest.permission.ACCESS_FINE_LOCATION)
+                        == PackageManager.PERMISSION_GRANTED) {
+                    //Location Permission already granted
+                    buildGoogleApiClient();
+                    isNavigationDriving = true;
+                } else {
+                    //Request Location Permission
+                    return Constant.NAVIGATION_DIRIVING_REQUEST_LOCATION_PERMISSION;
+                }
+            } else {
+                buildGoogleApiClient();
+                isNavigationDriving = true;
+            }
+            return Constant.NAVIGATION_DIRIVING_START_SUCCESS;
+        } else {
+            return Constant.NAVIGATION_DIRIVING_CURRENTLY_RUNNING;
+        }
+    }
+
+    public int stopNavigationDriving() {
+
         if (googleApiClient != null && isNavigationDriving) {
             LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, this);
             isNavigationDriving = false;
+            return Constant.NAVIGATION_DIRIVING_STOP_SUCCESS;
+        } else {
+            return Constant.NAVIGATION_DIRIVING_CURRENTLY_NOT_RUNNING;
         }
-
     }
-
 
     public void setLocationRequest(long interval, long fastestInterval, int priority) {
         if (locationRequest == null) {
@@ -151,7 +169,6 @@ public class NavigationDriving implements GoogleApiClient.ConnectionCallbacks, G
         googleApiClient.connect();
     }
 
-
     @Override
     public void onConnectionSuspended(int i) {
 
@@ -166,58 +183,60 @@ public class NavigationDriving implements GoogleApiClient.ConnectionCallbacks, G
     public void onLocationChanged(Location location) {
 
         if (location != null) {
-            if (preLocation == null) {
-                preLocation = location;
-            }
-            newLocation = location;
-            if (!isSpeech) {
-                //new WattingSpeech().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, location);
-                if (newLocation != null) {
-                    if (route != null) {
-                        Location startLocation = new Location("");
-                        for (int i = 0; i < route.getSteps().size(); i++) {
+            if (!isCustomNavigationDiriving) {
+                if (preLocation == null) {
+                    preLocation = location;
+                }
+                newLocation = location;
+                if (!isSpeech) {
+                    if (newLocation != null) {
+                        if (route != null) {
+                            Location startLocation = new Location("");
+                            for (int i = 0; i < route.getSteps().size(); i++) {
+                                startLocation.setLatitude(route.getSteps().get(i).getStartLocation().latitude);
+                                startLocation.setLongitude(route.getSteps().get(i).getStartLocation().longitude);
+                                if (newLocation.distanceTo(startLocation) < 30 && route.getSteps().get(i).getFlag() == 0) {
+                                    route.getSteps().get(i).setFlag(1);
 
-                            startLocation.setLatitude(route.getSteps().get(i).getStartLocation().latitude);
-                            startLocation.setLongitude(route.getSteps().get(i).getStartLocation().longitude);
-                            if (newLocation.distanceTo(startLocation) < 30 && route.getSteps().get(i).getFlag() == 0) {
-                                route.getSteps().get(i).setFlag(1);
-                                String url = "";
-                                url += Constant.URL;
-                                String text = route.getSteps().get(i).getInstructions().trim();
-                                url += text;
-                                Log.d("URL", url);
+                                    switch (voiceMode) {
+                                        case Constant.NAVIGATION_DIRIVING_TTS_VOICE_MODE: {
 
-//                                if (!isPlay) {
-//                                    isPlay = true;
-//                                    Intent startIntent = new Intent(MainActivity.this, StreamAudioIntentServiceUtils.class);
-//                                    startIntent.putExtra("URL", url);
-//                                    startService(startIntent);
-//                                }
+                                            String maneuver = route.getSteps().get(i).getManeuver();
+                                            if (ttsUtils != null) {
+                                                ttsUtils.speakText(maneuver);
+                                            } else {
+                                                ttsUtils = new TextToSpeechUtils(activity);
+                                            }
+                                        }
+                                        ;
+                                        break;
+                                        case Constant.NAVIGATION_DIRIVING_GTTS_VOICE_MODE: {
+                                            String url = "";
+                                            url += Constant.URL;
+                                            String text = route.getSteps().get(i).getInstructions().trim();
+                                            url += text;
+                                            Intent startIntent = new Intent(activity, StreamAudioServiceUtils.class);
+                                            startIntent.putExtra("URL", url);
+                                            activity.startService(startIntent);
+                                            Toast.makeText(activity, route.getSteps().get(i).getInstructions(), Toast.LENGTH_SHORT).show();
+                                        }
+                                        ;
+                                        break;
+                                    }
 
-                                Intent startIntent = new Intent(activity, StreamAudioServiceUtils.class);
-                                startIntent.putExtra("URL", url);
-                                activity.startService(startIntent);
-                                Toast.makeText(activity, route.getSteps().get(i).getInstructions(), Toast.LENGTH_SHORT).show();
+                                }
                             }
                         }
                     }
-//                    if (!textToSpeech.isSpeaking()) {
-//                        isSpeech = true;
-//                        streetName = getStreetNameByLocation(newLocation);
-//                        if (!streetName.isEmpty()) {
-//                            textToSpeech.speak(SPEECH_DRIVING + getStreetNameByLocation(newLocation) + "street", TextToSpeech.QUEUE_FLUSH, null);
-//                        } else {
-//                            textToSpeech.speak(SPEECH_NO_ADDRESS, TextToSpeech.QUEUE_FLUSH, null);
-//                        }
-//                        new WattingSpeech().execute(newLocation);
-//                    }
                 }
+                if (isNavigationDriving) {
+                    CameraUtils.goToLocation(googleMap, newLocation.getLatitude(), newLocation.getLongitude(), 20, 60, preLocation.bearingTo(location));
+                }
+                preLocation = location;
+                this.callbackNavigationDriving.onLocationChanged(location);
+            } else {
+                this.callbackNavigationDriving.onLocationChanged(location);
             }
-            if (isNavigationDriving) {
-                CameraUtils.goToLocation(googleMap, newLocation.getLatitude(), newLocation.getLongitude(), 20, 60, preLocation.bearingTo(location));
-            }
-            preLocation = location;
-            this.callbackNavigationDriving.onLocationChanged(location);
         }
     }
 
@@ -245,13 +264,14 @@ public class NavigationDriving implements GoogleApiClient.ConnectionCallbacks, G
             }
         }
 
+        callbackNavigationDriving.onDirectionFinderStart();
+
     }
 
     @Override
     public void onDirectionFinderResult(ArrayList<Route> routes, boolean isSuccess) {
 
         progressDialog.dismiss();
-
 
         if (isSuccess) {
 
@@ -283,7 +303,22 @@ public class NavigationDriving implements GoogleApiClient.ConnectionCallbacks, G
 
             this.route = routes.get(0);
             this.callbackNavigationDriving.onDirectionFinderSuccess();
+
+        } else {
+            this.callbackNavigationDriving.onDirectionFinderFailed();
         }
+    }
+
+    public interface OnNavigationDrivingListener {
+
+
+        public void onLocationChanged(Location location);
+
+        public void onDirectionFinderStart();
+
+        public void onDirectionFinderSuccess();
+
+        public void onDirectionFinderFailed();
     }
 
 

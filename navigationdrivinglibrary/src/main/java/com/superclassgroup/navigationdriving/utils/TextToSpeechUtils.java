@@ -1,6 +1,7 @@
 package com.superclassgroup.navigationdriving.utils;
 
 import android.content.Context;
+import android.os.Build;
 import android.speech.tts.TextToSpeech;
 
 import java.util.Locale;
@@ -26,10 +27,25 @@ public class TextToSpeechUtils {
         }
     }
 
-    public void stopTTS(){
+    public void speakText(String text) {
+        if (textToSpeech != null) {
+            if (textToSpeech.isSpeaking()) {
+                textToSpeech.stop();
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                textToSpeech.speak(text, TextToSpeech.QUEUE_ADD, null, null);
+            } else {
+                textToSpeech.speak(text, TextToSpeech.QUEUE_ADD, null);
+            }
+        }
+    }
+
+    public void stopTTS() {
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
         }
     }
+
+
 }

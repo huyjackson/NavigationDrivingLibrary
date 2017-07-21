@@ -19,13 +19,16 @@ allprojects {
 
 Add the dependency
 ```
-compile 'com.github.huyjackson:NavigationDrivingLibrary:v1.1'
+compile 'com.github.huyjackson:NavigationDrivingLibrary:v1.2'
 ```
 
 ## Changelog
 
 All notable changes to this project will be documented in this file.
 
+### [v1.2] - 2017-07-21
+#### Added
+- Fixed sync gradle
 ### [v1.1] - 2017-07-20
 #### Added
 - New support findDirection method with Location type parameter
